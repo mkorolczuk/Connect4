@@ -131,7 +131,7 @@ void drawBoard(char board[ROWS][COLS]) {
     }
 }
 bool checkForWinner(char board[ROWS][COLS], bool isPlayer, int row, int col) {
-    if(row > 0 && row < ROWS && col > 0 && col < COLS) {
+    if(row >= 0 && row < ROWS && col >= 0 && col < COLS) {
         char pawn = isPlayer ? PLAYER : COMPUTER;
         if(checkVertically(board, pawn, row, col)) {
             return true;
@@ -187,7 +187,7 @@ int minimax(char board[ROWS][COLS], int depth, bool isMaxPlayer, int row, int co
     if(isMaxPlayer) {
         int bestScore = INT_MIN;
         int score;
-        #pragma omp parallel for private(score) shared(board, bestScore, moves, depth)
+        #pragma omp parallel for private(score) shared(board, bestScore, moves, depth) reduction(max:score)
         for(int i = 0; i < moves.size(); i++) {
             char boardCopy[ROWS][COLS];
             copy(&board[0][0], &board[0][0]+ROWS*COLS, &boardCopy[0][0]);
@@ -199,7 +199,7 @@ int minimax(char board[ROWS][COLS], int depth, bool isMaxPlayer, int row, int co
     } else {
         int bestScore = INT_MAX;
         int score;
-        #pragma omp parallel for private(score) shared(board, bestScore, moves, depth)
+        #pragma omp parallel for private(score) shared(board, bestScore, moves, depth) reduction(min:score)
         for(int i = 0; i < moves.size(); i++) {
             char boardCopy[ROWS][COLS];
             copy(&board[0][0], &board[0][0]+ROWS*COLS, &boardCopy[0][0]);
@@ -211,7 +211,7 @@ int minimax(char board[ROWS][COLS], int depth, bool isMaxPlayer, int row, int co
     }
 }
 int computerMove(char board[ROWS][COLS]) {
-    int bestMove = NULL;
+    int bestMove = 0;
     int bestScore = INT_MIN;
     for(int move : getPossibleMoves(board)) {
         int row = makeMove(board, move, false);
@@ -221,7 +221,6 @@ int computerMove(char board[ROWS][COLS]) {
             bestMove = move;
             bestScore = score;
         }
-        cout << "Ruch dla kolumny " << move << " to " << score << endl;
     }
     int row = makeMove(board, bestMove, false);
     return checkForWinner(board, false, row, bestMove);
@@ -247,6 +246,10 @@ int main(int argc, char** argv) {
            }
        } while(isInvalid);
        row = makeMove(board, col - 1, true);
+       if(getPossibleMoves(board).size() == 0) {
+           cout << "REMIS" << endl;
+           break;
+       }
        isWinner = checkForWinner(board, true, row, col-1);
        if(isWinner) {
            cout << "Zwyciężył gracz numer 1" << endl;
@@ -257,6 +260,10 @@ int main(int argc, char** argv) {
        if(isWinner) {
            cout << "Zwyciężył gracz numer 2" << endl;
            drawBoard(board);
+           break;
+       }
+       if(getPossibleMoves(board).size() == 0) {
+           cout << "REMIS" << endl;
            break;
        }
     }
