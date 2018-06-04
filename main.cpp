@@ -22,11 +22,10 @@ using namespace std;
 
 #define ROWS 6
 #define COLS 7
-#define DEPTH 8
+#define DEPTH 5
 #define PLAYER 'X'
 #define COMPUTER 'Y'
 
-bool draw = false;
 
 bool isInvalidMove(char board[ROWS][COLS], int col) {
     if(col >= 0 && col < COLS) {
@@ -175,9 +174,11 @@ int generateRandomMove(int scores[COLS]){
 }
 int minimax(char board[ROWS][COLS], int depth, bool isMaxPlayer, int row, int col) {
     vector<int> moves = getPossibleMoves(board);
-    int scores[COLS];
-    if(checkForWinner(board, !isMaxPlayer, row, col)) {
-        return isMaxPlayer ? -1 : 1;
+    if(checkForWinner(board, false, row, col) && !isMaxPlayer) {
+        return 1;
+    }
+    if(checkForWinner(board, true, row, col) && isMaxPlayer) {
+        return -1;
     }
     if(depth == DEPTH || moves.size() == 0) {
         return 0;
@@ -185,21 +186,16 @@ int minimax(char board[ROWS][COLS], int depth, bool isMaxPlayer, int row, int co
     depth++;
     if(isMaxPlayer) {
         int bestScore = INT_MIN;
-        int bestMove = 0;
         int score;
         #pragma omp parallel for private(score) shared(board, bestScore, moves, depth)
         for(int i = 0; i < moves.size(); i++) {
             char boardCopy[ROWS][COLS];
             copy(&board[0][0], &board[0][0]+ROWS*COLS, &boardCopy[0][0]);
             int row = makeMove(boardCopy, moves[i], false);
-            score = minimax(boardCopy, depth, false, row, moves[i]);
-            if(depth == 1 && score > bestScore) {
-                bestMove = moves[i];
-                printf("Number of threads: %d\n", omp_get_num_threads());
-            }
+            score = minimax(boardCopy, depth, !isMaxPlayer, row, moves[i]);
             bestScore = max(bestScore, score);
         }
-        return bestMove;
+        return bestScore;
     } else {
         int bestScore = INT_MAX;
         int score;
@@ -208,16 +204,27 @@ int minimax(char board[ROWS][COLS], int depth, bool isMaxPlayer, int row, int co
             char boardCopy[ROWS][COLS];
             copy(&board[0][0], &board[0][0]+ROWS*COLS, &boardCopy[0][0]);
             int row = makeMove(boardCopy, moves[i], true);
-            score = minimax(boardCopy, depth, true, row, moves[i]);
+            score = minimax(boardCopy, depth, !isMaxPlayer, row, moves[i]);
             bestScore = min(bestScore, score);
         }
         return bestScore;
     }
 }
 int computerMove(char board[ROWS][COLS]) {
-    int move = minimax(board, 0, true, -1, -1);
-    int row = makeMove(board, move, false);
-    return checkForWinner(board, false, row, move);
+    int bestMove = NULL;
+    int bestScore = INT_MIN;
+    for(int move : getPossibleMoves(board)) {
+        int row = makeMove(board, move, false);
+        int score = minimax(board, 0, false, row, move);
+        board[row][move] = '0';
+        if(score > bestScore) {
+            bestMove = move;
+            bestScore = score;
+        }
+        cout << "Ruch dla kolumny " << move << " to " << score << endl;
+    }
+    int row = makeMove(board, bestMove, false);
+    return checkForWinner(board, false, row, bestMove);
 }
 int main(int argc, char** argv) {
     char board[ROWS][COLS];
